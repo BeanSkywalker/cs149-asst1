@@ -36,19 +36,35 @@ void workerThreadStart(WorkerArgs * const args) {
     // half of the image and thread 1 could compute the bottom half.
 
     double startTime = CycleTimer::currentSeconds();
-        
-    mandelbrotSerial(
+
+    for (int i = args->threadId; i < args->height; i=i+args->numThreads)
+    {
+        mandelbrotSerial(
         args->x0,
         args->y0,
         args->x1,
         args->y1,
         args->width,
         args->height,
-        (args->height / args->numThreads) * args->threadId,
-        (args->height / args->numThreads),
+        i,
+        1,
         args->maxIterations,
         args->output
     );
+    }
+        
+    // mandelbrotSerial(
+    //     args->x0,
+    //     args->y0,
+    //     args->x1,
+    //     args->y1,
+    //     args->width,
+    //     args->height,
+    //     (args->height / args->numThreads) * args->threadId,
+    //     (args->height / args->numThreads),
+    //     args->maxIterations,
+    //     args->output
+    // );
 
     double endTime = CycleTimer::currentSeconds();
 
