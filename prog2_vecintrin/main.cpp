@@ -240,6 +240,38 @@ void clampedExpSerial(float* values, int* exponents, float* output, int N) {
   }
 }
 
+void print_vec_int (__cs149_vec_int & value) {
+  printf("printf int : ");
+  for (size_t i = 0; i < VECTOR_WIDTH; i++)
+  {
+    printf("%9d ", value.value[i]);
+  }
+  printf("\n");
+}
+
+void print_vec_float (__cs149_vec_float& value) {
+  printf("printf float : ");
+  for (size_t i = 0; i < VECTOR_WIDTH; i++)
+  {
+    printf("% f ", value.value[i]);
+  }
+  printf("\n");
+}
+
+void print_vec_mask (__cs149_mask& value) {
+  printf("printf mask : ");
+  for (size_t i = 0; i < VECTOR_WIDTH; i++)
+  {
+    if(value.value[i]) {
+      printf("         1");
+    } else {
+      printf("         0");
+    }
+    
+  }
+  printf("\n");
+}
+
 void clampedExpVector(float* values, int* exponents, float* output, int N) {
 
   //
@@ -249,6 +281,99 @@ void clampedExpVector(float* values, int* exponents, float* output, int N) {
   // Your solution should work for any value of
   // N and VECTOR_WIDTH, not just when VECTOR_WIDTH divides N
   //
+
+  int remain_n  = N;
+  int value_ptr = 0;
+  int remain_check;
+
+  __cs149_mask        vec_mask;
+  __cs149_mask        vec_mask_all1;
+  __cs149_mask        vec_check_mask;
+  __cs149_vec_float   vec_exp_result;
+  __cs149_vec_float   vec_max_value;
+  __cs149_vec_float   vec_exp_value;
+  __cs149_vec_int     vec_exponents;
+  __cs149_vec_int     vec_all_0;
+  __cs149_vec_int     vec_all_1;
+
+  float               value_1   = 1;
+  float               max_value = 9.999999f;
+
+  
+
+  vec_all_0 = _cs149_vset_int( 0 );
+  vec_all_1 = _cs149_vset_int( 1 );
+
+  vec_max_value = _cs149_vset_float(max_value);
+
+  vec_mask_all1 = _cs149_init_ones(VECTOR_WIDTH);
+
+
+  while (remain_n > 0) {
+    // setting mask values
+      if (remain_n < VECTOR_WIDTH ) {
+        vec_mask = _cs149_init_ones(remain_n);
+      } else {
+        vec_mask = _cs149_init_ones(VECTOR_WIDTH);
+      }
+      
+    // loading values
+      _cs149_vload_float  (vec_exp_value  , &values[N - remain_n]    , vec_mask);
+      // _cs149_vload_float  (vec_exp_result , &values[N - remain_n]    , vec_mask);
+      _cs149_vset_float   (vec_exp_result , value_1                 , vec_mask);
+      _cs149_vload_int    (vec_exponents  , &exponents[N - remain_n] , vec_mask);
+      // printf("->load value\r\n");
+      // print_vec_float(vec_exp_value);
+      // print_vec_int(vec_exponents);
+      // print_vec_mask(vec_mask);
+
+    // start calculation
+      // check 0 exp
+        // printf("->check 0 exp\r\n");
+        // print_vec_mask(vec_mask);
+        
+        _cs149_veq_int    ( vec_check_mask , vec_exponents , vec_all_0 , vec_mask);
+        // _cs149_vload_float( vec_exp_result , &value_1 , vec_check_mask);
+
+        // print_vec_mask(vec_check_mask);
+        vec_check_mask = _cs149_mask_not ( vec_check_mask );
+        // print_vec_mask(vec_check_mask);
+        vec_mask = _cs149_mask_and( vec_mask , vec_check_mask);
+        // print_vec_mask(vec_mask);
+        // exp value -1, which means execute '*' start from 2
+        // _cs149_vsub_int   ( vec_exponents , vec_exponents , vec_all_1 , vec_mask);
+      
+        // print_vec_float(vec_exp_result);
+        // print_vec_int(vec_exponents);
+        // print_vec_mask(vec_mask);
+      // while loop
+        while ( 0 < _cs149_cntbits(vec_mask)) {
+          _cs149_vmult_float  (vec_exp_result , vec_exp_result , vec_exp_value , vec_mask);
+
+          // update the exp value
+          _cs149_vsub_int   ( vec_exponents , vec_exponents , vec_all_1 , vec_mask);
+          _cs149_veq_int    ( vec_check_mask , vec_exponents , vec_all_0 , vec_mask);
+          vec_check_mask = _cs149_mask_not ( vec_check_mask );
+          vec_mask = _cs149_mask_and( vec_mask , vec_check_mask);
+
+          // print_vec_float(vec_exp_result);
+          // print_vec_int(vec_exponents);
+          // print_vec_mask(vec_mask);
+        }
+      // ckeck if > 9.99
+        // printf("->check max value \r\n");
+        // print_vec_float(vec_exp_result);
+        _cs149_vgt_float (vec_check_mask , vec_exp_result , vec_max_value , vec_mask_all1);
+        // print_vec_mask(vec_check_mask);
+        _cs149_vset_float(vec_exp_result , max_value, vec_check_mask);
+        // print_vec_float(vec_exp_result);
+      // copy output value
+        _cs149_vstore_float( &output[ N - remain_n ], vec_exp_result , vec_mask_all1);
+      
+        remain_n = remain_n - VECTOR_WIDTH;
+
+        // printf("-> remain N number: %d", remain_n);
+  }
   
 }
 
