@@ -63,8 +63,8 @@ int main(int argc, char * argv[]) {
   clampedExpSerial(values, exponents, gold, N);
   clampedExpVector(values, exponents, output, N);
 
-  //absSerial(values, gold, N);
-  //absVector(values, output, N);
+  // absSerial(values, gold, N);
+  // absVector(values, output, N);
 
   printf("\e[1;31mCLAMPED EXPONENT\e[0m (required) \n");
   bool clampedCorrect = verifyResult(values, exponents, output, gold, N);
@@ -272,6 +272,15 @@ void print_vec_mask (__cs149_mask& value) {
   printf("\n");
 }
 
+void print_data_float (float* value) {
+  printf("printf data float : ");
+  for (size_t i = 0; i < VECTOR_WIDTH; i++)
+  {
+    printf("% f ", value[i]);
+  }
+  printf("\n");
+}
+
 void clampedExpVector(float* values, int* exponents, float* output, int N) {
 
   //
@@ -287,6 +296,7 @@ void clampedExpVector(float* values, int* exponents, float* output, int N) {
   int remain_check;
 
   __cs149_mask        vec_mask;
+  __cs149_mask        vec_mask_data_cpy;
   __cs149_mask        vec_mask_all1;
   __cs149_mask        vec_check_mask;
   __cs149_vec_float   vec_exp_result;
@@ -312,15 +322,17 @@ void clampedExpVector(float* values, int* exponents, float* output, int N) {
   while (remain_n > 0) {
     // setting mask values
       if (remain_n < VECTOR_WIDTH ) {
-        vec_mask = _cs149_init_ones(remain_n);
+        vec_mask          = _cs149_init_ones(remain_n);
+        vec_mask_data_cpy = _cs149_init_ones(remain_n);
       } else {
-        vec_mask = _cs149_init_ones(VECTOR_WIDTH);
+        vec_mask          = _cs149_init_ones(VECTOR_WIDTH);
+        vec_mask_data_cpy = _cs149_init_ones(VECTOR_WIDTH);
       }
       
     // loading values
       _cs149_vload_float  (vec_exp_value  , &values[N - remain_n]    , vec_mask);
-      // _cs149_vload_float  (vec_exp_result , &values[N - remain_n]    , vec_mask);
-      _cs149_vset_float   (vec_exp_result , value_1                 , vec_mask);
+      _cs149_vload_float  (vec_exp_result , &values[N - remain_n]    , vec_mask);
+      // _cs149_vset_float   (vec_exp_result , value_1                 , vec_mask);
       _cs149_vload_int    (vec_exponents  , &exponents[N - remain_n] , vec_mask);
       // printf("->load value\r\n");
       // print_vec_float(vec_exp_value);
@@ -333,28 +345,35 @@ void clampedExpVector(float* values, int* exponents, float* output, int N) {
         // print_vec_mask(vec_mask);
         
         _cs149_veq_int    ( vec_check_mask , vec_exponents , vec_all_0 , vec_mask);
-        // _cs149_vload_float( vec_exp_result , &value_1 , vec_check_mask);
+        _cs149_vset_float ( vec_exp_result , value_1 , vec_check_mask);
 
         // print_vec_mask(vec_check_mask);
         vec_check_mask = _cs149_mask_not ( vec_check_mask );
         // print_vec_mask(vec_check_mask);
         vec_mask = _cs149_mask_and( vec_mask , vec_check_mask);
         // print_vec_mask(vec_mask);
-        // exp value -1, which means execute '*' start from 2
-        // _cs149_vsub_int   ( vec_exponents , vec_exponents , vec_all_1 , vec_mask);
+
+      // exp value -1, which means execute '*' start from 2
+        _cs149_vsub_int   ( vec_exponents , vec_exponents , vec_all_1 , vec_mask);
+        // update mask data
+          _cs149_veq_int    ( vec_check_mask , vec_exponents , vec_all_0 , vec_mask);
+          vec_check_mask = _cs149_mask_not ( vec_check_mask );
+          vec_mask = _cs149_mask_and( vec_mask , vec_check_mask);
       
         // print_vec_float(vec_exp_result);
         // print_vec_int(vec_exponents);
         // print_vec_mask(vec_mask);
       // while loop
         while ( 0 < _cs149_cntbits(vec_mask)) {
-          _cs149_vmult_float  (vec_exp_result , vec_exp_result , vec_exp_value , vec_mask);
+          
+            // implement multiply
+            _cs149_vmult_float  (vec_exp_result , vec_exp_result , vec_exp_value , vec_mask);
 
           // update the exp value
-          _cs149_vsub_int   ( vec_exponents , vec_exponents , vec_all_1 , vec_mask);
-          _cs149_veq_int    ( vec_check_mask , vec_exponents , vec_all_0 , vec_mask);
-          vec_check_mask = _cs149_mask_not ( vec_check_mask );
-          vec_mask = _cs149_mask_and( vec_mask , vec_check_mask);
+            _cs149_vsub_int   ( vec_exponents , vec_exponents , vec_all_1 , vec_mask);
+            _cs149_veq_int    ( vec_check_mask , vec_exponents , vec_all_0 , vec_mask);
+            vec_check_mask = _cs149_mask_not ( vec_check_mask );
+            vec_mask = _cs149_mask_and( vec_mask , vec_check_mask);
 
           // print_vec_float(vec_exp_result);
           // print_vec_int(vec_exponents);
@@ -368,7 +387,7 @@ void clampedExpVector(float* values, int* exponents, float* output, int N) {
         _cs149_vset_float(vec_exp_result , max_value, vec_check_mask);
         // print_vec_float(vec_exp_result);
       // copy output value
-        _cs149_vstore_float( &output[ N - remain_n ], vec_exp_result , vec_mask_all1);
+        _cs149_vstore_float( &output[ N - remain_n ], vec_exp_result , vec_mask_data_cpy);
       
         remain_n = remain_n - VECTOR_WIDTH;
 
@@ -395,11 +414,64 @@ float arraySumVector(float* values, int N) {
   //
   // CS149 STUDENTS TODO: Implement your vectorized version of arraySumSerial here
   //
+
+  int remain_n  = N;
+  int value_ptr = 0;
+  int remain_check;
+
+
+  __cs149_mask        vec_mask_all1;
+  __cs149_mask        vec_mask_first_1;
+  __cs149_vec_float   vec_sum_result;
+  __cs149_vec_float   vec_sum_value;
+
+  __cs149_vec_float   vec_max_value;
+  __cs149_vec_int     vec_all_0;
+  __cs149_vec_int     vec_all_1;
   
-  for (int i=0; i<N; i+=VECTOR_WIDTH) {
 
-  }
+  float               value_1   = 1;
+  float               max_value = 9.999999f;
 
-  return 0.0;
+
+  vec_all_0 = _cs149_vset_int( 0 );
+  vec_all_1 = _cs149_vset_int( 1 );
+
+  vec_max_value = _cs149_vset_float(max_value);
+
+  vec_mask_all1 = _cs149_init_ones(VECTOR_WIDTH);
+
+  vec_mask_first_1 = _cs149_init_ones (1);
+
+
+  // initial value
+    _cs149_vset_float ( vec_sum_result , .0f , vec_mask_all1);
+
+  // add value by vectors
+    for (int i=0; i<N; i+=VECTOR_WIDTH) {
+      _cs149_vload_float(vec_sum_value  , &values[i]     , vec_mask_all1);
+      _cs149_vadd_float (vec_sum_result , vec_sum_result , vec_sum_value , vec_mask_all1);
+      // print_data_float  (&values[i]);
+      // print_vec_float   (vec_sum_result);
+    }
+
+  // summation value insize a vector
+    int i=VECTOR_WIDTH>>1;
+
+    // printf("-> adding inside a vector\r\n");
+    while (i > 0)
+    {
+      _cs149_hadd_float(vec_sum_result , vec_sum_result);
+      _cs149_interleave_float(vec_sum_result , vec_sum_result);
+      i = i/2;
+      // print_vec_float   (vec_sum_result);
+    }
+
+    float out_temp;
+
+    _cs149_vstore_float( &out_temp , vec_sum_result , vec_mask_first_1);
+    
+
+  return out_temp;
 }
 
